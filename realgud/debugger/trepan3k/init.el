@@ -36,6 +36,44 @@ realgud-loc-pat struct")
 
 (declare-function make-realgud-loc 'realgud-loc)
 
+;; Set this to some TRAMP path like "/ssh:user@host:" or "/docker:user@host:"
+(defvar realgud-remote-prefix "")
+
+(defun realgud:trepan3k-add-remote-prefix (filename)
+  (concat realgud-remote-prefix filename))
+
+(defun realgud:trepan3k-find-file(marker filename directory)
+  "A find-file specific for python/trepan. We strip off trailing
+blanks. Failing that we will prompt for a mapping and save that
+in variable `realgud:trepan2-file-remap' when that works. In the future,
+we may also consult PYTHONPATH."
+  (let* ((transformed-file)
+         (cmdbuf (realgud-get-cmdbuf))
+         (stripped-filename (realgud:strip filename))
+         (remote-filename (realgud:trepan3k-add-remote-prefix filename))
+         (ignore-re-file-list (realgud-cmdbuf-ignore-re-file-list cmdbuf))
+         (filename-remap-alist (realgud-cmdbuf-filename-remap-alist))
+         (remapped-filename
+          (assoc filename filename-remap-alist))
+         )
+    (cond
+     ((file-exists-p filename) filename)
+     ((file-exists-p stripped-filename) stripped-filename)
+     ((file-exists-p remote-filename) remote-filename)
+     ((realgud:file-ignore filename ignore-re-file-list)
+      (message "tracking ignored for %s" filename) nil)
+     (t
+      (error (concat "Couldn't figure out how to handle: " filename)))
+     )))
+
+
+(defun realgud:trepan3k-loc-fn-callback(text filename lineno source-str
+                                             cmd-mark directory)
+  (realgud:file-loc-from-line filename lineno cmd-mark source-str nil
+                              'realgud:trepan3k-find-file directory))
+
+(setf (gethash "loc-callback-fn" realgud:trepan3k-pat-hash) 'realgud:trepan3k-loc-fn-callback)
+
 ;; realgud-loc-pat that describes a trepan3k location generally shown
 ;; before a command prompt.
 ;;
